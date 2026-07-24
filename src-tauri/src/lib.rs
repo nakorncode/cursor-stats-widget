@@ -174,6 +174,18 @@ pub fn run() {
         ])
         .setup(|app| {
             let loaded = settings::load(app.handle());
+            // Apply preferred autostart (default: on).
+            let mgr = app.autolaunch();
+            let apply = if loaded.launch_on_startup {
+                mgr.enable()
+            } else {
+                mgr.disable()
+            };
+            if let Err(e) = apply {
+                eprintln!("autostart apply failed: {e}");
+            }
+            // Persist defaults so first-run settings.json includes launchOnStartup.
+            let _ = settings::save(app.handle(), &loaded);
             app.manage(SettingsState(std::sync::Mutex::new(loaded.clone())));
 
             let show_i = MenuItem::with_id(app, "show", "Show overlay", true, None::<&str>)?;
@@ -233,13 +245,12 @@ pub fn run() {
             let clock_sub = Submenu::with_items(app, "Clock format", true, &clock_refs)?;
 
             let sep = PredefinedMenuItem::separator(app)?;
-            let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
             let autostart_i = CheckMenuItem::with_id(
                 app,
                 "autostart",
                 "Launch on startup",
                 true,
-                autostart_enabled,
+                loaded.launch_on_startup,
                 None::<&str>,
             )?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -304,21 +315,25 @@ pub fn run() {
                             let _ = app.emit("refresh-usage", true);
                         }
                         "autostart" => {
+                            let currently = app
+                                .state::<SettingsState>()
+                                .0
+                                .lock()
+                                .map(|s| s.launch_on_startup)
+                                .unwrap_or(true);
+                            let enable = !currently;
                             let mgr = app.autolaunch();
-                            let currently = mgr.is_enabled().unwrap_or(false);
-                            let ok = if currently {
-                                mgr.disable()
-                            } else {
+                            let ok = if enable {
                                 mgr.enable()
-                            };
-                            let enabled = if ok.is_ok() {
-                                !currently
                             } else {
-                                mgr.is_enabled().unwrap_or(currently)
+                                mgr.disable()
                             };
-                            let _ = autostart_m.set_checked(enabled);
-                            if let Err(e) = ok {
-                                eprintln!("launch on startup failed: {e}");
+                            if ok.is_ok() {
+                                patch_settings(app, |s| s.launch_on_startup = enable);
+                                let _ = autostart_m.set_checked(enable);
+                            } else {
+                                let _ = autostart_m.set_checked(currently);
+                                eprintln!("launch on startup failed: {ok:?}");
                             }
                         }
                         "quit" => app.exit(0),

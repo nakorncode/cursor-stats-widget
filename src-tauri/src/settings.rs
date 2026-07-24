@@ -19,6 +19,9 @@ pub struct Settings {
     /// `system` | `12h` | `24h` — system falls back to 12h if detection fails.
     #[serde(default = "default_clock_format")]
     pub clock_format: String,
+    /// Default on: register Windows logon autostart unless the user turns it off.
+    #[serde(default = "default_launch_on_startup")]
+    pub launch_on_startup: bool,
 }
 
 fn default_recent_chats() -> i64 {
@@ -29,12 +32,17 @@ fn default_clock_format() -> String {
     "system".into()
 }
 
+fn default_launch_on_startup() -> bool {
+    true
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             refresh_secs: 20,
             recent_chats: 3,
             clock_format: "system".into(),
+            launch_on_startup: true,
         }
     }
 }

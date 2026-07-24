@@ -55,7 +55,7 @@ Outputs under `src-tauri/target/release/bundle/`.
 | Refresh every | 10s … 10m, or Never (manual) |
 | Recent chats | 1 / 2 / 3 / 5 / 10 / Hide |
 | Clock format | System (fallback 12h) / 12-hour / 24-hour |
-| **Launch on startup** | Opt-in Windows logon start (tray checkbox) |
+| **Launch on startup** | On by default; toggle from tray checkbox |
 
 Left-click tray icon toggles the overlay. Right-click opens the menu.
 
