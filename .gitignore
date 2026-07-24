@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src-tauri/target/
+*.log
+.DS_Store
+.vscode/
+scripts/*-smoke.png
+scripts/overlay-smoke.png
+scripts/chart-smoke.png
+.env
+.env.*

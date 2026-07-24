@@ -1,0 +1,223 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.3;
+  color: #e8eaed;
+  background: transparent;
+  user-select: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #121418;
+}
+
+.panel {
+  height: 100%;
+  padding: 12px 14px 10px;
+  background: linear-gradient(160deg, #1a1d24 0%, #121418 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #f3f4f6;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.label {
+  color: rgba(232, 234, 237, 0.62);
+  flex-shrink: 0;
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #f8fafc;
+  text-align: right;
+}
+
+.foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 2px;
+}
+
+.muted {
+  color: rgba(232, 234, 237, 0.45);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#refresh-btn,
+#chart-btn,
+#close-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(232, 234, 237, 0.55);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+#refresh-btn:hover,
+#chart-btn:hover,
+#close-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.error .value {
+  color: #f87171;
+}
+
+.pace-under #pace {
+  color: #93c5fd;
+}
+.pace-on #pace {
+  color: #86efac;
+}
+.pace-over #pace {
+  color: #fbbf24;
+}
+
+.chats {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chats.hidden {
+  display: none;
+}
+
+.chats-label {
+  font-size: 11px;
+}
+
+.chat-row {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+#chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chart-body .chart-panel {
+  gap: 10px;
+  height: 100%;
+}
+
+.range-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.range-row button {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 234, 237, 0.75);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.range-row button.active,
+.range-row button:hover {
+  background: rgba(94, 234, 212, 0.15);
+  border-color: rgba(94, 234, 212, 0.35);
+  color: #5eead4;
+}
+
+.chart-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chart-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 220px;
+}
+
+#chart {
+  width: 100%;
+  height: 220px;
+  min-height: 220px;
+  display: block;
+  background: #0d0f12;
+  border-radius: 8px;
+  cursor: crosshair;
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 110px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(15, 18, 24, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  font-size: 11px;
+  line-height: 1.35;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.chart-tooltip.hidden {
+  display: none;
+}
+
+.chart-tooltip .tip-muted {
+  color: rgba(232, 234, 237, 0.5);
+}
+

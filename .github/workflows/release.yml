@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.0). Leave empty to use the current ref."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+          releaseName: "Cursor Stats ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}"
+          releaseBody: |
+            ## Cursor Stats ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+
+            Windows overlay + tray for personal Cursor usage stats.
+
+            ### Downloads
+            - **NSIS setup** — `*-setup.exe` (recommended)
+            - **MSI** — `*_en-US.msi`
+
+            Sign in to the Cursor desktop app once before first launch.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false

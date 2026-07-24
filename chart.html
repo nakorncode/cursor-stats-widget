@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cursor cost chart</title>
+    <script type="module" src="/src/chart.ts" defer></script>
+  </head>
+  <body class="chart-body">
+    <main class="panel chart-panel" data-tauri-drag-region>
+      <header class="head" data-tauri-drag-region>
+        <span class="brand" data-tauri-drag-region>Cost chart</span>
+        <button type="button" id="close-btn" title="Close">✕</button>
+      </header>
+
+      <div class="range-row" id="ranges">
+        <button type="button" data-range="300">5m</button>
+        <button type="button" data-range="600">10m</button>
+        <button type="button" data-range="1800">30m</button>
+        <button type="button" data-range="3600" class="active">1h</button>
+        <button type="button" data-range="10800">3h</button>
+        <button type="button" data-range="21600">6h</button>
+        <button type="button" data-range="43200">12h</button>
+        <button type="button" data-range="86400">24h</button>
+        <button type="button" data-range="259200">3d</button>
+      </div>
+
+      <div class="chart-meta">
+        <span id="chart-total" class="value">—</span>
+        <span id="chart-status" class="muted">Loading…</span>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas id="chart" width="480" height="220"></canvas>
+        <div id="chart-tooltip" class="chart-tooltip hidden"></div>
+      </div>
+    </main>
+  </body>
+</html>
