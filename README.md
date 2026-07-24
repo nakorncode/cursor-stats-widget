@@ -55,9 +55,17 @@ Outputs under `src-tauri/target/release/bundle/`.
 | Refresh every | 10s … 10m, or Never (manual) |
 | Recent chats | 1 / 2 / 3 / 5 / 10 / Hide |
 | Clock format | System (fallback 12h) / 12-hour / 24-hour |
-| Start with Windows | Opt-in |
+| **Launch on startup** | Opt-in Windows logon start (tray checkbox) |
 
 Left-click tray icon toggles the overlay. Right-click opens the menu.
+
+## Recent chats (cost model)
+
+Cursor reuses one `conversationId` for a long-lived chat. We **split sessions** when idle time between events exceeds **30 minutes**, so “recent #1” is the latest active burst — not the whole day’s total for that id.
+
+## Branch / release
+
+See [docs/BRANCHING.md](./docs/BRANCHING.md): work on `develop` (rebase onto `main` first); **always merge to `main` before tagging** a release.
 
 ## Today's pace
 

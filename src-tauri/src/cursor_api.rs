@@ -346,7 +346,12 @@ async fn fetch_cost_series_inner(
 }
 
 fn group_recent_chats(events: &[UsageEvent], limit: usize) -> Vec<RecentChat> {
-    let mut map: HashMap<String, RecentChat> = HashMap::new();
+    // Cursor reuses one conversationId across a long day. Summing the whole id
+    // makes "recent chat #1" look like all-day spend. Split into sessions when
+    // idle gap exceeds SESSION_GAP_MS (ponytail: 30m; tighten if still too wide).
+    const SESSION_GAP_MS: u64 = 30 * 60 * 1000;
+
+    let mut by_conv: HashMap<String, Vec<(u64, f64)>> = HashMap::new();
     for event in events {
         let Some(ts) = event_ts_ms(event) else {
             continue;
@@ -358,26 +363,62 @@ fn group_recent_chats(events: &[UsageEvent], limit: usize) -> Vec<RecentChat> {
             .filter(|s| !s.is_empty() && s != "null")
             .unwrap_or_else(|| format!("event:{ts}"));
         let cost = event_cost_usd(event).unwrap_or(0.0);
-        map.entry(id.clone())
-            .and_modify(|c| {
-                c.cost_usd += cost;
-                c.event_count += 1;
-                if ts < c.started_ms {
-                    c.started_ms = ts;
-                }
-                if ts > c.last_ms {
-                    c.last_ms = ts;
-                }
-            })
-            .or_insert(RecentChat {
-                conversation_id: id,
-                cost_usd: cost,
-                started_ms: ts,
-                last_ms: ts,
-                event_count: 1,
-            });
+        by_conv.entry(id).or_default().push((ts, cost));
     }
-    let mut chats: Vec<RecentChat> = map.into_values().collect();
+
+    let mut chats: Vec<RecentChat> = Vec::new();
+    for (conv_id, mut list) in by_conv {
+        list.sort_by_key(|(ts, _)| *ts);
+        let mut session_start = list[0].0;
+        let mut session_last = list[0].0;
+        let mut session_cost = list[0].1;
+        let mut session_events: u32 = 1;
+
+        let flush = |chats: &mut Vec<RecentChat>,
+                     conv_id: &str,
+                     start: u64,
+                     last: u64,
+                     cost: f64,
+                     n: u32| {
+            chats.push(RecentChat {
+                conversation_id: format!("{conv_id}#{start}"),
+                cost_usd: cost,
+                started_ms: start,
+                last_ms: last,
+                event_count: n,
+            });
+        };
+
+        for &(ts, cost) in list.iter().skip(1) {
+            if ts.saturating_sub(session_last) > SESSION_GAP_MS {
+                flush(
+                    &mut chats,
+                    &conv_id,
+                    session_start,
+                    session_last,
+                    session_cost,
+                    session_events,
+                );
+                session_start = ts;
+                session_last = ts;
+                session_cost = cost;
+                session_events = 1;
+            } else {
+                session_last = ts;
+                session_cost += cost;
+                session_events += 1;
+            }
+        }
+        flush(
+            &mut chats,
+            &conv_id,
+            session_start,
+            session_last,
+            session_cost,
+            session_events,
+        );
+    }
+
     chats.sort_by(|a, b| b.last_ms.cmp(&a.last_ms));
     chats.truncate(limit);
     chats
@@ -588,4 +629,37 @@ fn days_from_civil(y: i32, m: i32, d: i32) -> Option<i64> {
     let doy = (153 * mpd + 2) / 5 + d as u64 - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     Some(era as i64 * 146_097 + doe as i64 - 719_468)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ev(ts: u64, conv: &str, cents: f64) -> UsageEvent {
+        UsageEvent {
+            timestamp: Some(ts.to_string()),
+            model: None,
+            conversation_id: Some(conv.into()),
+            charged_cents: Some(cents),
+            requests_costs: None,
+            token_usage: None,
+            usage_based_costs: None,
+        }
+    }
+
+    #[test]
+    fn session_gap_splits_long_conversation() {
+        let day = 1_700_000_000_000u64;
+        let events = vec![
+            ev(day, "c1", 100.0),                        // $1
+            ev(day + 5 * 60_000, "c1", 50.0),            // +$0.50 same session
+            ev(day + 2 * 3600_000, "c1", 200.0),         // $2 after 2h gap → new session
+            ev(day + 2 * 3600_000 + 60_000, "c1", 25.0), // +$0.25
+        ];
+        let chats = group_recent_chats(&events, 10);
+        assert_eq!(chats.len(), 2);
+        // newest session first
+        assert!((chats[0].cost_usd - 2.25).abs() < 0.001);
+        assert!((chats[1].cost_usd - 1.5).abs() < 0.001);
+    }
 }

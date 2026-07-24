@@ -237,7 +237,7 @@ pub fn run() {
             let autostart_i = CheckMenuItem::with_id(
                 app,
                 "autostart",
-                "Start with Windows",
+                "Launch on startup",
                 true,
                 autostart_enabled,
                 None::<&str>,
@@ -280,10 +280,12 @@ pub fn run() {
                     .zip(clock_checks.into_iter())
                     .collect::<Vec<_>>(),
             );
+            let autostart_item = std::sync::Arc::new(autostart_i);
 
             let refresh_m = refresh_arc.clone();
             let recent_m = recent_arc.clone();
             let clock_m = clock_arc.clone();
+            let autostart_m = autostart_item.clone();
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -303,12 +305,21 @@ pub fn run() {
                         }
                         "autostart" => {
                             let mgr = app.autolaunch();
-                            let enabled = mgr.is_enabled().unwrap_or(false);
-                            let _ = if enabled {
+                            let currently = mgr.is_enabled().unwrap_or(false);
+                            let ok = if currently {
                                 mgr.disable()
                             } else {
                                 mgr.enable()
                             };
+                            let enabled = if ok.is_ok() {
+                                !currently
+                            } else {
+                                mgr.is_enabled().unwrap_or(currently)
+                            };
+                            let _ = autostart_m.set_checked(enabled);
+                            if let Err(e) = ok {
+                                eprintln!("launch on startup failed: {e}");
+                            }
                         }
                         "quit" => app.exit(0),
                         other if other.starts_with("refresh_every_") => {
@@ -366,7 +377,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            let _ = (refresh_arc, recent_arc, clock_arc);
+            let _ = (refresh_arc, recent_arc, clock_arc, autostart_item);
 
             if let Some(win) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
