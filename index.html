@@ -12,31 +12,32 @@
       <header class="head" data-tauri-drag-region>
         <span class="brand" data-tauri-drag-region>Cursor</span>
         <span id="membership" class="muted" data-tauri-drag-region></span>
+        <button type="button" id="close-btn" title="Hide" aria-label="Hide">×</button>
       </header>
 
-      <div class="row">
+      <div class="row full-only">
         <span class="label">Plan usage</span>
         <span id="plan-used" class="value">—</span>
       </div>
-      <div class="row">
+      <div class="row full-only">
         <span class="label">Last task cost</span>
         <span id="last-cost" class="value">—</span>
       </div>
-      <div class="row">
+      <div class="row full-only">
         <span class="label">Period left</span>
         <span id="period-left" class="value">—</span>
       </div>
-      <div class="row">
-        <span class="label">Today's pace</span>
+      <div class="row pace-row">
+        <span class="label full-only">Today's pace</span>
         <span id="pace" class="value">—</span>
       </div>
 
-      <section id="chats-section" class="chats hidden">
+      <section id="chats-section" class="chats hidden full-only">
         <div class="chats-label muted">Recent chats</div>
         <div id="chat-list"></div>
       </section>
 
-      <footer class="foot">
+      <footer class="foot full-only">
         <span id="status" class="muted">Loading…</span>
         <div class="actions">
           <button type="button" id="chart-btn" title="Cost chart">▣</button>

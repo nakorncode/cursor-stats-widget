@@ -35,10 +35,14 @@ type Settings = {
   refreshSecs: number;
   recentChats: number;
   clockFormat: string;
+  launchOnStartup?: boolean;
+  compactMode: boolean;
 };
 
 const BACKOFF_MS = 60_000;
 const BASE_HEIGHT = 188;
+const COMPACT_WIDTH = 320;
+const COMPACT_HEIGHT = 40;
 const CHAT_ROW_HEIGHT = 18;
 const CHATS_HEADER = 22;
 
@@ -49,9 +53,10 @@ let settings: Settings = {
   refreshSecs: 20,
   recentChats: 3,
   clockFormat: "system",
+  compactMode: false,
 };
 let use12h = true;
-let lastFittedN = -1;
+let lastFittedKey = "";
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -131,11 +136,16 @@ function chatLine(c: RecentChat): string {
 }
 
 /** Fixed formula — never measure DOM (that caused endless height growth). */
-async function fitWindowForChatCount(n: number) {
-  if (n === lastFittedN) return;
-  lastFittedN = n;
-  const extra = n > 0 ? CHATS_HEADER + n * CHAT_ROW_HEIGHT : 0;
+async function fitWindow(chatCount: number) {
+  const key = settings.compactMode ? "c" : `f${chatCount}`;
+  if (key === lastFittedKey) return;
+  lastFittedKey = key;
   try {
+    if (settings.compactMode) {
+      await getCurrentWindow().setSize(new LogicalSize(COMPACT_WIDTH, COMPACT_HEIGHT));
+      return;
+    }
+    const extra = chatCount > 0 ? CHATS_HEADER + chatCount * CHAT_ROW_HEIGHT : 0;
     await getCurrentWindow().setSize(new LogicalSize(340, BASE_HEIGHT + extra));
   } catch {
     // ignore in browser preview
@@ -146,12 +156,16 @@ function renderChats(snap: UsageSnapshot) {
   const section = $("chats-section");
   const list = $("chat-list");
   const chats = snap.recentChats ?? [];
-  const show = settings.recentChats > 0 && !snap.error && chats.length > 0;
+  const show =
+    !settings.compactMode &&
+    settings.recentChats > 0 &&
+    !snap.error &&
+    chats.length > 0;
 
   section.classList.toggle("hidden", !show);
   list.innerHTML = "";
   if (!show) {
-    void fitWindowForChatCount(0);
+    void fitWindow(0);
     return;
   }
 
@@ -161,12 +175,13 @@ function renderChats(snap: UsageSnapshot) {
     row.textContent = chatLine(c);
     list.appendChild(row);
   }
-  void fitWindowForChatCount(chats.length);
+  void fitWindow(chats.length);
 }
 
 function render(snap: UsageSnapshot) {
   lastSnap = snap;
   const panel = document.querySelector(".panel");
+  panel?.classList.toggle("compact", settings.compactMode);
   panel?.classList.toggle("error", Boolean(snap.error));
   panel?.classList.remove("pace-under", "pace-on", "pace-over");
   if (!snap.error) {
@@ -202,7 +217,7 @@ function render(snap: UsageSnapshot) {
 }
 
 function updateStatus() {
-  if (!lastSnap) return;
+  if (!lastSnap || settings.compactMode) return;
   $("status").textContent = lastSnap.error
     ? lastSnap.error
     : `Updated ${fmtAge(lastSnap.refreshedAtMs)}`;
@@ -265,11 +280,16 @@ function scheduleBackoff() {
 }
 
 function applySettings(s: Settings) {
+  const modeChanged = Boolean(s.compactMode) !== settings.compactMode;
   const chatsChanged = s.recentChats !== settings.recentChats;
-  settings = s;
+  settings = {
+    ...s,
+    compactMode: Boolean(s.compactMode),
+  };
   use12h = resolveUse12h(s.clockFormat);
-  if (chatsChanged) lastFittedN = -1; // force resize for new count
+  if (modeChanged || chatsChanged) lastFittedKey = ""; // force resize
   if (lastSnap) render(lastSnap);
+  else void fitWindow(0);
   scheduleNext();
 }
 
@@ -312,6 +332,10 @@ window.addEventListener("DOMContentLoaded", () => {
   $("chart-btn").addEventListener("click", (e) => {
     e.stopPropagation();
     void toggleChartWindow();
+  });
+  $("close-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    void invoke("hide_overlay");
   });
   void listen<boolean>("refresh-usage", (ev) => {
     void refresh(Boolean(ev.payload));

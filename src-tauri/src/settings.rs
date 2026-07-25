@@ -22,6 +22,9 @@ pub struct Settings {
     /// Default on: register Windows logon autostart unless the user turns it off.
     #[serde(default = "default_launch_on_startup")]
     pub launch_on_startup: bool,
+    /// Pace-only strip (tray toggle). Default off = full overlay.
+    #[serde(default)]
+    pub compact_mode: bool,
 }
 
 fn default_recent_chats() -> i64 {
@@ -43,6 +46,7 @@ impl Default for Settings {
             recent_chats: 3,
             clock_format: "system".into(),
             launch_on_startup: true,
+            compact_mode: false,
         }
     }
 }

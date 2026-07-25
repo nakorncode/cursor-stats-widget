@@ -22,6 +22,7 @@ body {
 }
 
 .panel {
+  position: relative;
   height: 100%;
   padding: 12px 14px 10px;
   background: linear-gradient(160deg, #1a1d24 0%, #121418 100%);
@@ -34,14 +35,28 @@ body {
 .head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   margin-bottom: 2px;
+  gap: 8px;
 }
 
 .brand {
   font-weight: 650;
   letter-spacing: 0.02em;
   color: #f3f4f6;
+}
+
+#membership {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+}
+
+#close-btn {
+  flex-shrink: 0;
+  line-height: 1;
+  font-size: 16px;
+  padding: 0 4px;
 }
 
 .row {
@@ -115,6 +130,43 @@ body {
 }
 .pace-over #pace {
   color: #fbbf24;
+}
+
+/* Compact: pace strip + hide button only */
+.panel.compact {
+  padding: 6px 8px 6px 12px;
+  gap: 0;
+  justify-content: center;
+}
+
+.panel.compact .full-only,
+.panel.compact .brand,
+.panel.compact #membership {
+  display: none;
+}
+
+.panel.compact .head {
+  margin: 0;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+}
+
+.panel.compact .pace-row {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+  padding-right: 28px;
+}
+
+.panel.compact #pace {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chats {

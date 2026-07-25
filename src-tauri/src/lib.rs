@@ -245,6 +245,14 @@ pub fn run() {
             let clock_sub = Submenu::with_items(app, "Clock format", true, &clock_refs)?;
 
             let sep = PredefinedMenuItem::separator(app)?;
+            let compact_i = CheckMenuItem::with_id(
+                app,
+                "compact",
+                "Compact mode",
+                true,
+                loaded.compact_mode,
+                None::<&str>,
+            )?;
             let autostart_i = CheckMenuItem::with_id(
                 app,
                 "autostart",
@@ -265,6 +273,7 @@ pub fn run() {
                     &recent_sub,
                     &clock_sub,
                     &sep,
+                    &compact_i,
                     &autostart_i,
                     &quit_i,
                 ],
@@ -291,11 +300,13 @@ pub fn run() {
                     .zip(clock_checks.into_iter())
                     .collect::<Vec<_>>(),
             );
+            let compact_item = std::sync::Arc::new(compact_i);
             let autostart_item = std::sync::Arc::new(autostart_i);
 
             let refresh_m = refresh_arc.clone();
             let recent_m = recent_arc.clone();
             let clock_m = clock_arc.clone();
+            let compact_m = compact_item.clone();
             let autostart_m = autostart_item.clone();
 
             let _tray = TrayIconBuilder::new()
@@ -313,6 +324,17 @@ pub fn run() {
                         }
                         "refresh" => {
                             let _ = app.emit("refresh-usage", true);
+                        }
+                        "compact" => {
+                            let currently = app
+                                .state::<SettingsState>()
+                                .0
+                                .lock()
+                                .map(|s| s.compact_mode)
+                                .unwrap_or(false);
+                            let enable = !currently;
+                            patch_settings(app, |s| s.compact_mode = enable);
+                            let _ = compact_m.set_checked(enable);
                         }
                         "autostart" => {
                             let currently = app

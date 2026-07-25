@@ -12,9 +12,10 @@ Shows plan usage, last conversation cost, period remaining, today’s pace, rece
 ## Features
 
 - **Overlay** — plan usage %, last task cost (summed by conversation), period left, today’s pace (`used%/budget%/day · $ today`)
+- **Compact mode** — tray toggle; pace text only + hide button
 - **Recent chats** — last 24h, grouped by conversation; tray count **1 / 2 / 3 / 5 / 10 / Hide**
 - **Cost chart** — 5m → 3d ranges, in-bar `$` labels, hover tooltip (amount + time range)
-- **Tray** — show/hide, refresh interval (incl. never), clock format, Start with Windows (opt-in)
+- **Tray** — show/hide, refresh interval (incl. never), clock format, compact mode, Launch on startup
 - **Auth** — auto-reads `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (`cursorAuth/accessToken`); optional `CURSOR_SESSION_TOKEN`
 
 ## Install (Windows)
@@ -55,6 +56,7 @@ Outputs under `src-tauri/target/release/bundle/`.
 | Refresh every | 10s … 10m, or Never (manual) |
 | Recent chats | 1 / 2 / 3 / 5 / 10 / Hide |
 | Clock format | System (fallback 12h) / 12-hour / 24-hour |
+| **Compact mode** | Pace-only strip (tray checkbox; default off) |
 | **Launch on startup** | On by default; toggle from tray checkbox |
 
 Left-click tray icon toggles the overlay. Right-click opens the menu.
