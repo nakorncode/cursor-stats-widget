@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 type RecentChat = {
@@ -325,23 +325,44 @@ async function toggleChartWindow() {
 }
 
 /**
- * Move the overlay with setPosition instead of startDragging / data-tauri-drag-region.
- * Native Win32 drag activates Windows snap / half-screen split near edges.
+ * Move via setPosition (avoids Windows snap from startDragging).
+ * Use cursorPosition + PhysicalPosition so multi-monitor / mixed-DPI
+ * does not oscillate (LogicalPosition + screenX did flicker across displays).
  */
 function installSnapSafeDrag(root: HTMLElement) {
   const win = getCurrentWindow();
-  type Drag = { ox: number; oy: number; sx: number; sy: number; ready: boolean };
-  let drag: Drag | null = null;
+  /** Cursor offset inside the window, in physical pixels. */
+  let grab: { ox: number; oy: number } | null = null;
+  let busy = false;
+  let queued = false;
 
-  const onMove = (e: PointerEvent) => {
-    if (!drag?.ready) return;
-    const { ox, oy, sx, sy } = drag;
-    void win.setPosition(new LogicalPosition(ox + (e.screenX - sx), oy + (e.screenY - sy)));
+  const apply = async () => {
+    if (busy) {
+      queued = true;
+      return;
+    }
+    busy = true;
+    try {
+      do {
+        queued = false;
+        const g = grab;
+        if (!g) break;
+        const cursor = await cursorPosition();
+        if (!grab) break;
+        await win.setPosition(new PhysicalPosition(cursor.x - g.ox, cursor.y - g.oy));
+      } while (queued && grab);
+    } catch {
+      // ignore transient IPC errors mid-drag
+    } finally {
+      busy = false;
+      if (queued && grab) void apply();
+    }
   };
 
   const endDrag = (e: PointerEvent) => {
-    if (!drag) return;
-    drag = null;
+    if (!grab) return;
+    grab = null;
+    queued = false;
     try {
       root.releasePointerCapture(e.pointerId);
     } catch {
@@ -354,28 +375,22 @@ function installSnapSafeDrag(root: HTMLElement) {
     if (!(e.target instanceof Element)) return;
     if (e.target.closest("button, a, input, textarea, select, [data-no-drag]")) return;
 
-    const sx = e.screenX;
-    const sy = e.screenY;
-    const token: Drag = { ox: 0, oy: 0, sx, sy, ready: false };
-    drag = token;
     root.setPointerCapture(e.pointerId);
-
     void (async () => {
       try {
-        const scale = await win.scaleFactor();
-        const phys = await win.outerPosition();
-        const logical = phys.toLogical(scale);
-        if (drag !== token) return;
-        token.ox = logical.x;
-        token.oy = logical.y;
-        token.ready = true;
+        const [pos, cursor] = await Promise.all([win.outerPosition(), cursorPosition()]);
+        if (e.buttons === 0) return;
+        grab = { ox: cursor.x - pos.x, oy: cursor.y - pos.y };
+        void apply();
       } catch {
-        if (drag === token) drag = null;
+        grab = null;
       }
     })();
   });
 
-  root.addEventListener("pointermove", onMove);
+  root.addEventListener("pointermove", () => {
+    if (grab) void apply();
+  });
   root.addEventListener("pointerup", endDrag);
   root.addEventListener("pointercancel", endDrag);
 }

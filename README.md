@@ -61,7 +61,7 @@ Outputs under `src-tauri/target/release/bundle/`.
 
 Left-click tray icon toggles the overlay. Right-click opens the menu.
 
-Drag the overlay body to move it (buttons excluded). Movement uses `setPosition` so Windows snap / half-screen split does not activate near edges.
+Drag the overlay body to move it (buttons excluded). Movement uses physical `cursorPosition` + `setPosition` so Windows snap stays off and mixed-DPI / multi-monitor moves stay stable.
 
 ## Recent chats (cost model)
 
