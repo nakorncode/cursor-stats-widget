@@ -61,6 +61,8 @@ Outputs under `src-tauri/target/release/bundle/`.
 
 Left-click tray icon toggles the overlay. Right-click opens the menu.
 
+Drag the overlay body to move it (buttons excluded). Movement uses `setPosition` so Windows snap / half-screen split does not activate near edges.
+
 ## Recent chats (cost model)
 
 Cursor reuses one `conversationId` for a long-lived chat. We **split sessions** when idle time between events exceeds **30 minutes**, so “recent #1” is the latest active burst — not the whole day’s total for that id.

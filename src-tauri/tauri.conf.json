@@ -18,6 +18,8 @@
         "width": 340,
         "height": 260,
         "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
         "minWidth": 280,
         "minHeight": 36,
         "decorations": false,

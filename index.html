@@ -8,11 +8,14 @@
     <script type="module" src="/src/main.ts" defer></script>
   </head>
   <body>
-    <main class="panel" data-tauri-drag-region>
-      <header class="head" data-tauri-drag-region>
-        <span class="brand" data-tauri-drag-region>Cursor</span>
-        <span id="membership" class="muted" data-tauri-drag-region></span>
-        <button type="button" id="close-btn" title="Hide" aria-label="Hide">×</button>
+    <!-- Drag uses JS setPosition (snap-safe). Do not add Tauri native drag regions. -->
+    <main class="panel">
+      <header class="head">
+        <span class="brand">Cursor</span>
+        <span id="membership" class="muted"></span>
+        <button type="button" id="close-btn" title="Hide" aria-label="Hide" data-no-drag>
+          ×
+        </button>
       </header>
 
       <div class="row full-only">
@@ -40,8 +43,8 @@
       <footer class="foot full-only">
         <span id="status" class="muted">Loading…</span>
         <div class="actions">
-          <button type="button" id="chart-btn" title="Cost chart">▣</button>
-          <button type="button" id="refresh-btn" title="Refresh">↻</button>
+          <button type="button" id="chart-btn" title="Cost chart" data-no-drag>▣</button>
+          <button type="button" id="refresh-btn" title="Refresh" data-no-drag>↻</button>
         </div>
       </footer>
     </main>

@@ -156,8 +156,15 @@ body {
 .panel.compact .pace-row {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
+  width: 100%;
   min-height: 100%;
   padding-right: 28px;
+  cursor: grab;
+}
+
+.panel.compact .pace-row:active {
+  cursor: grabbing;
 }
 
 .panel.compact #pace {

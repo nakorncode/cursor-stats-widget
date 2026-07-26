@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 type RecentChat = {
@@ -324,7 +324,66 @@ async function toggleChartWindow() {
   });
 }
 
+/**
+ * Move the overlay with setPosition instead of startDragging / data-tauri-drag-region.
+ * Native Win32 drag activates Windows snap / half-screen split near edges.
+ */
+function installSnapSafeDrag(root: HTMLElement) {
+  const win = getCurrentWindow();
+  type Drag = { ox: number; oy: number; sx: number; sy: number; ready: boolean };
+  let drag: Drag | null = null;
+
+  const onMove = (e: PointerEvent) => {
+    if (!drag?.ready) return;
+    const { ox, oy, sx, sy } = drag;
+    void win.setPosition(new LogicalPosition(ox + (e.screenX - sx), oy + (e.screenY - sy)));
+  };
+
+  const endDrag = (e: PointerEvent) => {
+    if (!drag) return;
+    drag = null;
+    try {
+      root.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  root.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (!(e.target instanceof Element)) return;
+    if (e.target.closest("button, a, input, textarea, select, [data-no-drag]")) return;
+
+    const sx = e.screenX;
+    const sy = e.screenY;
+    const token: Drag = { ox: 0, oy: 0, sx, sy, ready: false };
+    drag = token;
+    root.setPointerCapture(e.pointerId);
+
+    void (async () => {
+      try {
+        const scale = await win.scaleFactor();
+        const phys = await win.outerPosition();
+        const logical = phys.toLogical(scale);
+        if (drag !== token) return;
+        token.ox = logical.x;
+        token.oy = logical.y;
+        token.ready = true;
+      } catch {
+        if (drag === token) drag = null;
+      }
+    })();
+  });
+
+  root.addEventListener("pointermove", onMove);
+  root.addEventListener("pointerup", endDrag);
+  root.addEventListener("pointercancel", endDrag);
+}
+
 window.addEventListener("DOMContentLoaded", () => {
+  const panel = document.querySelector(".panel");
+  if (panel instanceof HTMLElement) installSnapSafeDrag(panel);
+
   $("refresh-btn").addEventListener("click", (e) => {
     e.stopPropagation();
     void refresh(true);
