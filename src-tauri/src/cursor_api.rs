@@ -219,8 +219,6 @@ async fn fetch_usage_snapshot_inner(
         .billing_cycle_end
         .as_ref()
         .and_then(|s| parse_iso_ms(s));
-    let (days_left, daily_budget_percent) =
-        daily_budget_from_remaining(plan_remaining_percent, day_start_ms, billing_cycle_end_ms);
 
     let scan_start = now.saturating_sub(SCAN_24H_MS);
     let events_24h =
@@ -234,6 +232,15 @@ async fn fetch_usage_snapshot_inner(
     let today_cost_usd: f64 = today_events.iter().filter_map(|e| event_cost_usd(e)).sum();
     let today_requests: f64 = today_events.iter().filter_map(|e| e.requests_costs).sum();
     let today_used_percent = (today_requests / capacity) * 100.0;
+
+    // Budget is fixed for the day: remaining at local midnight ÷ calendar days.
+    // Using live remaining alone shrinks the budget as you spend today (18%→14.4% → 9%→7.2%).
+    let (days_left, daily_budget_percent) = daily_budget_from_remaining(
+        plan_remaining_percent,
+        today_used_percent,
+        day_start_ms,
+        billing_cycle_end_ms,
+    );
 
     let pace_ratio = if daily_budget_percent > 0.001 {
         today_used_percent / daily_budget_percent
@@ -640,8 +647,12 @@ fn calendar_days_for_budget(day_start_ms: u64, billing_end_ms: u64) -> f64 {
 }
 
 /// Returns `(days_left, daily_budget_percent)`.
+///
+/// Daily budget uses remaining **at local day start** (`liveRemaining + todayUsed`),
+/// so spending today does not shrink the day's allowance.
 fn daily_budget_from_remaining(
     plan_remaining_percent: f64,
+    today_used_percent: f64,
     day_start_ms: u64,
     billing_cycle_end_ms: Option<u64>,
 ) -> (f64, f64) {
@@ -649,7 +660,8 @@ fn daily_budget_from_remaining(
         Some(end) => calendar_days_for_budget(day_start_ms, end),
         None => 1.0,
     };
-    (days, plan_remaining_percent / days)
+    let remaining_at_day_start = (plan_remaining_percent + today_used_percent.max(0.0)).max(0.0);
+    (days, remaining_at_day_start / days)
 }
 
 #[cfg(test)]
@@ -690,7 +702,7 @@ mod tests {
     fn daily_budget_halves_when_two_calendar_days_remain() {
         let day_start = 1_700_000_000_000u64;
         let end = day_start + 2 * DAY;
-        let (days, budget) = daily_budget_from_remaining(18.0, day_start, Some(end));
+        let (days, budget) = daily_budget_from_remaining(18.0, 0.0, day_start, Some(end));
         assert!((days - 2.0).abs() < f64::EPSILON);
         assert!((budget - 9.0).abs() < 0.001);
     }
@@ -702,7 +714,7 @@ mod tests {
         let day_start = 1_700_000_000_000u64;
         let now = day_start + 9 * 3600_000; // 09:00 local
         let end = now + DAY; // 09:00 tomorrow (fractional remaining = 1.0)
-        let (days, budget) = daily_budget_from_remaining(18.0, day_start, Some(end));
+        let (days, budget) = daily_budget_from_remaining(18.0, 0.0, day_start, Some(end));
         assert!((days - 2.0).abs() < f64::EPSILON, "days={days}");
         assert!((budget - 9.0).abs() < 0.001, "budget={budget}");
     }
@@ -711,15 +723,28 @@ mod tests {
     fn daily_budget_is_full_remaining_on_renewal_day() {
         let day_start = 1_700_000_000_000u64;
         let end = day_start + DAY / 2; // later today
-        let (days, budget) = daily_budget_from_remaining(18.0, day_start, Some(end));
+        let (days, budget) = daily_budget_from_remaining(18.0, 0.0, day_start, Some(end));
         assert!((days - 1.0).abs() < f64::EPSILON);
         assert!((budget - 18.0).abs() < 0.001);
     }
 
     #[test]
     fn daily_budget_defaults_to_one_day_without_billing_end() {
-        let (days, budget) = daily_budget_from_remaining(18.0, 0, None);
+        let (days, budget) = daily_budget_from_remaining(18.0, 0.0, 0, None);
         assert!((days - 1.0).abs() < f64::EPSILON);
         assert!((budget - 18.0).abs() < 0.001);
+    }
+
+    /// Bug repro: live remaining drops as you spend today (18→14.4), but the
+    /// day's budget must stay 9% (= (14.4+3.6)/2), not shrink to 7.2%.
+    #[test]
+    fn daily_budget_stays_fixed_as_today_usage_grows() {
+        let day_start = 1_700_000_000_000u64;
+        let end = day_start + 2 * DAY;
+        let morning = daily_budget_from_remaining(18.0, 0.0, day_start, Some(end));
+        let later = daily_budget_from_remaining(14.4, 3.6, day_start, Some(end));
+        assert!((morning.1 - 9.0).abs() < 0.001, "morning={}", morning.1);
+        assert!((later.1 - 9.0).abs() < 0.001, "later={}", later.1);
+        // Old buggy formula would have been 14.4/2 = 7.2
     }
 }

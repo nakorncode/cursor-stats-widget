@@ -74,13 +74,16 @@ See [docs/BRANCHING.md](./docs/BRANCHING.md): work on `develop` (rebase onto `ma
 ## Today's pace
 
 ```
-daysLeft     = ceil((billingCycleEnd − localDayStart) ÷ 24h)   # at least 1
-dailyBudget% = planRemaining% ÷ daysLeft
-todayUsed%   = sum(today's requestCosts) ÷ planCapacity × 100
-pace         = todayUsed% ÷ dailyBudget%
+daysLeft            = ceil((billingCycleEnd − localDayStart) ÷ 24h)   # at least 1
+remainingAtDayStart = planRemaining% + todayUsed%
+dailyBudget%        = remainingAtDayStart ÷ daysLeft
+todayUsed%          = sum(today's requestCosts) ÷ planCapacity × 100
+pace                = todayUsed% ÷ dailyBudget%
 ```
 
 Uses **calendar days from local midnight**, not raw hours÷24 — so “2 days left” with 18% remaining budgets **9%/day**, not 18%.
+
+`dailyBudget%` is based on remaining **at day start** (live remaining + today’s usage), so spending during the day does not shrink the allowance (avoids 9% → 7.2% drift).
 
 | Ratio | Label |
 |-------|--------|
