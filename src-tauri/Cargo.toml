@@ -1,6 +1,6 @@
 [package]
 name = "cursor-stats-widget"
-version = "0.2.2"
+version = "0.2.3"
 description = "Windows overlay + tray for Cursor usage stats"
 authors = ["nakorncode"]
 edition = "2021"
