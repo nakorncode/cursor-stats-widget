@@ -219,11 +219,8 @@ async fn fetch_usage_snapshot_inner(
         .billing_cycle_end
         .as_ref()
         .and_then(|s| parse_iso_ms(s));
-    let days_left = billing_cycle_end_ms
-        .map(|end| ((end as f64 - now as f64) / 86_400_000.0).max(0.0))
-        .unwrap_or(0.0);
-    let days_left_for_budget = days_left.max(1.0 / 24.0);
-    let daily_budget_percent = plan_remaining_percent / days_left_for_budget;
+    let (days_left, daily_budget_percent) =
+        daily_budget_from_remaining(plan_remaining_percent, day_start_ms, billing_cycle_end_ms);
 
     let scan_start = now.saturating_sub(SCAN_24H_MS);
     let events_24h =
@@ -631,9 +628,35 @@ fn days_from_civil(y: i32, m: i32, d: i32) -> Option<i64> {
     Some(era as i64 * 146_097 + doe as i64 - 719_468)
 }
 
+/// Calendar days covering `[local day start, billing end]`, ceiled, at least 1.
+/// Matches Cursor-style "N days left" better than raw hours/24 (which under-counts
+/// when ~24h remain but today+tomorrow are both in play).
+fn calendar_days_for_budget(day_start_ms: u64, billing_end_ms: u64) -> f64 {
+    if billing_end_ms <= day_start_ms {
+        return 1.0;
+    }
+    let span_days = (billing_end_ms - day_start_ms) as f64 / 86_400_000.0;
+    span_days.ceil().max(1.0)
+}
+
+/// Returns `(days_left, daily_budget_percent)`.
+fn daily_budget_from_remaining(
+    plan_remaining_percent: f64,
+    day_start_ms: u64,
+    billing_cycle_end_ms: Option<u64>,
+) -> (f64, f64) {
+    let days = match billing_cycle_end_ms {
+        Some(end) => calendar_days_for_budget(day_start_ms, end),
+        None => 1.0,
+    };
+    (days, plan_remaining_percent / days)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const DAY: u64 = 86_400_000;
 
     fn ev(ts: u64, conv: &str, cents: f64) -> UsageEvent {
         UsageEvent {
@@ -661,5 +684,42 @@ mod tests {
         // newest session first
         assert!((chats[0].cost_usd - 2.25).abs() < 0.001);
         assert!((chats[1].cost_usd - 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn daily_budget_halves_when_two_calendar_days_remain() {
+        let day_start = 1_700_000_000_000u64;
+        let end = day_start + 2 * DAY;
+        let (days, budget) = daily_budget_from_remaining(18.0, day_start, Some(end));
+        assert!((days - 2.0).abs() < f64::EPSILON);
+        assert!((budget - 9.0).abs() < 0.001);
+    }
+
+    /// Bug repro: ~24h from mid-morning → fractional days≈1 (wrong 18%),
+    /// but calendar span from midnight covers today+tomorrow → 2 days → 9%.
+    #[test]
+    fn daily_budget_uses_calendar_days_not_fractional_24h() {
+        let day_start = 1_700_000_000_000u64;
+        let now = day_start + 9 * 3600_000; // 09:00 local
+        let end = now + DAY; // 09:00 tomorrow (fractional remaining = 1.0)
+        let (days, budget) = daily_budget_from_remaining(18.0, day_start, Some(end));
+        assert!((days - 2.0).abs() < f64::EPSILON, "days={days}");
+        assert!((budget - 9.0).abs() < 0.001, "budget={budget}");
+    }
+
+    #[test]
+    fn daily_budget_is_full_remaining_on_renewal_day() {
+        let day_start = 1_700_000_000_000u64;
+        let end = day_start + DAY / 2; // later today
+        let (days, budget) = daily_budget_from_remaining(18.0, day_start, Some(end));
+        assert!((days - 1.0).abs() < f64::EPSILON);
+        assert!((budget - 18.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn daily_budget_defaults_to_one_day_without_billing_end() {
+        let (days, budget) = daily_budget_from_remaining(18.0, 0, None);
+        assert!((days - 1.0).abs() < f64::EPSILON);
+        assert!((budget - 18.0).abs() < 0.001);
     }
 }

@@ -74,10 +74,13 @@ See [docs/BRANCHING.md](./docs/BRANCHING.md): work on `develop` (rebase onto `ma
 ## Today's pace
 
 ```
-dailyBudget% = planRemaining% ÷ daysLeftUntilRenewal
+daysLeft     = ceil((billingCycleEnd − localDayStart) ÷ 24h)   # at least 1
+dailyBudget% = planRemaining% ÷ daysLeft
 todayUsed%   = sum(today's requestCosts) ÷ planCapacity × 100
 pace         = todayUsed% ÷ dailyBudget%
 ```
+
+Uses **calendar days from local midnight**, not raw hours÷24 — so “2 days left” with 18% remaining budgets **9%/day**, not 18%.
 
 | Ratio | Label |
 |-------|--------|
