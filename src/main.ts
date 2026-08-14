@@ -121,6 +121,23 @@ function fmtAge(ms: number): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
+/** `29 Aug` — day + English short month, local calendar date. */
+function fmtDayMonth(ms: number): string {
+  const d = new Date(ms);
+  const mon = d.toLocaleString("en", { month: "short" });
+  return `${d.getDate()} ${mon}`;
+}
+
+function periodLeftText(snap: UsageSnapshot): string {
+  const pct = fmtPct(snap.planRemainingPercent);
+  const days = Math.max(0, Math.round(snap.daysLeft));
+  const end =
+    snap.billingCycleEndMs != null ? fmtDayMonth(snap.billingCycleEndMs) : null;
+  if (end) return `${pct} · ${days}d · ${end}`;
+  if (days > 0) return `${pct} · ${days}d`;
+  return pct;
+}
+
 function paceText(snap: UsageSnapshot): string {
   const verdict =
     snap.paceLabel === "under"
@@ -210,7 +227,7 @@ function render(snap: UsageSnapshot) {
     $("last-cost").textContent = fmtUsd(snap.lastTaskCostUsd);
   }
 
-  $("period-left").textContent = snap.error ? "—" : fmtPct(snap.planRemainingPercent);
+  $("period-left").textContent = snap.error ? "—" : periodLeftText(snap);
   $("pace").textContent = snap.error ? "—" : paceText(snap);
   renderChats(snap);
   updateStatus();

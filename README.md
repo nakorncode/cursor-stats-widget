@@ -11,7 +11,7 @@ Shows plan usage, last conversation cost, period remaining, today’s pace, rece
 
 ## Features
 
-- **Overlay** — plan usage %, last task cost (summed by conversation), period left, today’s pace (`used%/budget%/day · $ today`)
+- **Overlay** — plan usage %, last task cost (summed by conversation), period left (`% · Nd · 29 Aug`), today’s pace (`used%/budget%/day · $ today`)
 - **Compact mode** — tray toggle; pace text only + hide button
 - **Recent chats** — last 24h, grouped by conversation; tray count **1 / 2 / 3 / 5 / 10 / Hide**
 - **Cost chart** — 5m → 3d ranges, in-bar `$` labels, hover tooltip (amount + time range)
