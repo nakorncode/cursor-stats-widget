@@ -83,13 +83,6 @@ struct PlanUsage {
     used: Option<f64>,
     #[serde(default)]
     limit: Option<f64>,
-    breakdown: Option<PlanBreakdown>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PlanBreakdown {
-    #[serde(default)]
-    total: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -203,17 +196,8 @@ async fn fetch_usage_snapshot_inner(
         .and_then(|p| p.total_percent_used.or(p.auto_percent_used))
         .unwrap_or(0.0);
     let plan_remaining_percent = (100.0 - plan_percent_used).clamp(0.0, 100.0);
-
-    let capacity = plan
-        .and_then(|p| {
-            p.breakdown
-                .as_ref()
-                .and_then(|b| b.total)
-                .or(p.limit)
-                .or(p.used)
-        })
-        .unwrap_or(0.0)
-        .max(1.0);
+    let plan_used = plan.and_then(|p| p.used).unwrap_or(0.0);
+    let plan_limit = plan.and_then(|p| p.limit).unwrap_or(0.0);
 
     let billing_cycle_end_ms = summary
         .billing_cycle_end
@@ -231,7 +215,13 @@ async fn fetch_usage_snapshot_inner(
         .collect();
     let today_cost_usd: f64 = today_events.iter().filter_map(|e| event_cost_usd(e)).sum();
     let today_requests: f64 = today_events.iter().filter_map(|e| e.requests_costs).sum();
-    let today_used_percent = (today_requests / capacity) * 100.0;
+    let today_used_percent = compute_today_used_percent(
+        today_cost_usd,
+        today_requests,
+        plan_used,
+        plan_percent_used,
+        plan_limit,
+    );
 
     // Budget is fixed for the day: remaining at local midnight ÷ calendar days.
     // Using live remaining alone shrinks the budget as you spend today (18%→14.4% → 9%→7.2%).
@@ -274,11 +264,7 @@ async fn fetch_usage_snapshot_inner(
         today_cost_usd,
         pace_ratio,
         pace_label,
-        recent_chats: if recent_limit == 0 {
-            vec![]
-        } else {
-            chats
-        },
+        recent_chats: if recent_limit == 0 { vec![] } else { chats },
         refreshed_at_ms: now,
         error: None,
     })
@@ -453,14 +439,14 @@ async fn get_events_cached(
             if let Some(cache) = guard.as_ref() {
                 let fresh = end_ms.saturating_sub(cache.fetched_at_ms) <= CACHE_TTL_MS
                     || now_ms().saturating_sub(cache.fetched_at_ms) <= CACHE_TTL_MS;
-                if fresh && cache.start_ms <= start_ms && cache.end_ms >= end_ms.saturating_sub(5_000)
+                if fresh
+                    && cache.start_ms <= start_ms
+                    && cache.end_ms >= end_ms.saturating_sub(5_000)
                 {
                     return Ok(cache
                         .events
                         .iter()
-                        .filter(|e| {
-                            event_ts_ms(e).is_some_and(|ts| ts >= start_ms && ts <= end_ms)
-                        })
+                        .filter(|e| event_ts_ms(e).is_some_and(|ts| ts >= start_ms && ts <= end_ms))
                         .cloned()
                         .collect());
                 }
@@ -646,6 +632,38 @@ fn calendar_days_for_budget(day_start_ms: u64, billing_end_ms: u64) -> f64 {
     span_days.ceil().max(1.0)
 }
 
+/// Today's share of the plan, in the same percent units as period-left.
+///
+/// Current usage-based Pro reports `plan.used` in cents (matches Σ `chargedCents`).
+/// `breakdown.total` equals `used` when bonus is 0 — that is consumed amount, not
+/// pool size. Pool size is `used / (totalPercentUsed / 100)` (included-total).
+fn implied_plan_capacity(used: f64, percent_used: f64, limit: f64) -> f64 {
+    if used > 0.0 && percent_used > 0.0 {
+        (used / (percent_used / 100.0)).max(1.0)
+    } else {
+        limit.max(used).max(1.0)
+    }
+}
+
+fn compute_today_used_percent(
+    today_cost_usd: f64,
+    today_requests: f64,
+    used: f64,
+    percent_used: f64,
+    limit: f64,
+) -> f64 {
+    let today_units = if today_cost_usd > 0.0 {
+        today_cost_usd * 100.0
+    } else {
+        today_requests
+    };
+    if today_units <= 0.0 {
+        return 0.0;
+    }
+    let capacity = implied_plan_capacity(used.max(today_units), percent_used, limit);
+    (today_units / capacity) * 100.0
+}
+
 /// Returns `(days_left, daily_budget_percent)`.
 ///
 /// Daily budget uses remaining **at local day start** (`liveRemaining + todayUsed`),
@@ -746,5 +764,58 @@ mod tests {
         assert!((morning.1 - 9.0).abs() < 0.001, "morning={}", morning.1);
         assert!((later.1 - 9.0).abs() < 0.001, "later={}", later.1);
         // Old buggy formula would have been 14.4/2 = 7.2
+    }
+
+    /// Live Pro 2026-08-14: used≈Σ chargedCents, breakdown.total==used (not pool).
+    /// Official included-total is 3.82% of a $345 pool (34500¢), not 1318¢ or $20.
+    /// Widget X must stay in those percent units so it does not outrun period-left.
+    #[test]
+    fn pro_today_pace_uses_official_percent_units_not_used_as_capacity() {
+        let used = 1318.0;
+        let limit = 2000.0;
+        let percent_used = 3.8202898550724638;
+        let today_requests = 19.5;
+        let today_cost_usd = 0.3896; // 38.96¢ from two grok-4.6 events
+        let got =
+            compute_today_used_percent(today_cost_usd, today_requests, used, percent_used, limit);
+        // 38.96¢ / 34500¢ × 100 = 0.113%
+        let expected = 38.96 / 34500.0 * 100.0;
+        assert!(
+            (got - expected).abs() < 0.01,
+            "got={got} expected≈{expected} (buggy was requests/used = {:.3})",
+            today_requests / used * 100.0
+        );
+        assert!(
+            got < 0.5,
+            "X% must not jump to ~1.5% after two chats when period used is only {percent_used}%"
+        );
+    }
+
+    /// Fresh Pro cycle: used is still tiny. Treating it as capacity makes X≈25%
+    /// after a few chats while the dashboard still shows ~0.1% used.
+    #[test]
+    fn fresh_pro_subscribe_does_not_inflate_today_percent() {
+        let used = 40.0;
+        let percent_used = 40.0 / 34500.0 * 100.0; // ≈0.116%
+        let today_requests = 10.0;
+        let today_cost_usd = 0.40;
+        let got =
+            compute_today_used_percent(today_cost_usd, today_requests, used, percent_used, 2000.0);
+        assert!(
+            (got - percent_used).abs() < 0.01,
+            "got={got} expected={percent_used} (all usage is today)"
+        );
+        assert!(
+            got < 1.0,
+            "fresh cycle must not report {got}% today vs {percent_used}% period used"
+        );
+    }
+
+    /// Legacy request-based plans have no dollar cost; fall back to request units
+    /// against implied capacity from used / percentUsed (= limit).
+    #[test]
+    fn request_based_today_percent_uses_request_units_when_no_dollar_cost() {
+        let got = compute_today_used_percent(0.0, 10.0, 200.0, 40.0, 500.0);
+        assert!((got - 2.0).abs() < 0.001, "got={got}");
     }
 }

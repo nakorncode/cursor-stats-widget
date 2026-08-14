@@ -77,11 +77,13 @@ See [docs/BRANCHING.md](./docs/BRANCHING.md): work on `develop` (rebase onto `ma
 daysLeft            = ceil((billingCycleEnd − localDayStart) ÷ 24h)   # at least 1
 remainingAtDayStart = planRemaining% + todayUsed%
 dailyBudget%        = remainingAtDayStart ÷ daysLeft
-todayUsed%          = sum(today's requestCosts) ÷ planCapacity × 100
+todayUsed%          = todayCost¢ ÷ (plan.used ÷ totalPercentUsed) × 100
 pace                = todayUsed% ÷ dailyBudget%
 ```
 
 Uses **calendar days from local midnight**, not raw hours÷24 — so “2 days left” with 18% remaining budgets **9%/day**, not 18%.
+
+`todayUsed%` is in the **same units as period-left** (`totalPercentUsed`). On current Pro, `plan.used` is cents (not request units) and `breakdown.total` is consumed amount, not pool size — the pool is inferred as `used / totalPercentUsed` (included-total, ~$345 on Pro). Using `requestsCosts / used` made X% jump after a few chats on a fresh Pro cycle.
 
 `dailyBudget%` is based on remaining **at day start** (live remaining + today’s usage), so spending during the day does not shrink the allowance (avoids 9% → 7.2% drift).
 
